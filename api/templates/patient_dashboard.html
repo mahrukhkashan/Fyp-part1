@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Dashboard - Sepsis Prediction System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-user-md me-2"></i>My Health Dashboard
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#checkRiskModal">
+                            <i class="fas fa-stethoscope me-1"></i>Check Risk
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="patientChatbotBtn">
+                            <i class="fas fa-robot me-1"></i>Health Assistant
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#healthTips">
+                            <i class="fas fa-lightbulb me-1"></i>Health Tips
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user me-1"></i>{{ session.full_name }}
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-user-circle me-2"></i>My Profile</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Settings</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Patient Summary -->
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-user me-2"></i>My Health Summary
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <div class="mb-3">
+                                <i class="fas fa-user-circle fa-4x text-success"></i>
+                            </div>
+                            <h4>{{ session.full_name }}</h4>
+                            <p class="text-muted">Patient ID: PT{{ session.user_id|string + "000"|slice(0, 6) }}</p>
+                        </div>
+                        
+                        <div class="health-stats">
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Last Check-up</span>
+                                <span class="fw-bold" id="lastCheckup">2 days ago</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Next Appointment</span>
+                                <span class="fw-bold text-success" id="nextAppointment">Tomorrow, 10:00 AM</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Primary Doctor</span>
+                                <span class="fw-bold">Dr. Sarah Johnson</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Health Status -->
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <i class="fas fa-heartbeat me-2"></i>Current Health Status
+                    </div>
+                    <div class="card-body">
+                        <div class="health-status">
+                            <div class="text-center mb-4">
+                                <div class="display-4 fw-bold" id="currentRisk">Low Risk</div>
+                                <div class="progress mt-2" style="height: 10px;">
+                                    <div class="progress-bar bg-success" id="riskProgress" style="width: 25%"></div>
+                                </div>
+                                <small class="text-muted">Last updated: 2 hours ago</small>
+                            </div>
+                            
+                            <div class="vitals-grid">
+                                <div class="vital-item text-center p-3">
+                                    <div class="vital-value" id="heartRate">72</div>
+                                    <div class="vital-label">Heart Rate</div>
+                                    <small class="text-muted">bpm</small>
+                                </div>
+                                <div class="vital-item text-center p-3">
+                                    <div class="vital-value" id="temperature">36.8</div>
+                                    <div class="vital-label">Temperature</div>
+                                    <small class="text-muted">°C</small>
+                                </div>
+                                <div class="vital-item text-center p-3">
+                                    <div class="vital-value" id="bloodPressure">120/80</div>
+                                    <div class="vital-label">Blood Pressure</div>
+                                    <small class="text-muted">mmHg</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard -->
+            <div class="col-lg-8">
+                <!-- Risk Assessment Card -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-chart-line me-2"></i>Sepsis Risk Assessment</span>
+                        <button class="btn btn-sm btn-light" onclick="updateRiskAssessment()">
+                            <i class="fas fa-sync-alt"></i> Update
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Current Risk Level</h5>
+                                        <div class="display-2 fw-bold text-success mb-3" id="riskPercentage">15%</div>
+                                        <span class="badge bg-success fs-6 p-3">LOW RISK</span>
+                                        <p class="mt-3 text-muted">Based on your latest health data</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Risk Trend</h5>
+                                        <canvas id="riskTrendChart" height="150"></canvas>
+                                        <div class="text-center mt-3">
+                                            <span class="badge bg-success"><i class="fas fa-arrow-down me-1"></i> Improving</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">Risk Factors</h5>
+                                        <div class="risk-factors">
+                                            <div class="factor-item mb-3">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Heart Rate</span>
+                                                    <span class="text-success">Normal</span>
+                                                </div>
+                                                <div class="progress" style="height: 8px;">
+                                                    <div class="progress-bar bg-success" style="width: 20%"></div>
+                                                </div>
+                                            </div>
+                                            <div class="factor-item mb-3">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Temperature</span>
+                                                    <span class="text-success">Normal</span>
+                                                </div>
+                                                <div class="progress" style="height: 8px;">
+                                                    <div class="progress-bar bg-success" style="width: 25%"></div>
+                                                </div>
+                                            </div>
+                                            <div class="factor-item mb-3">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span>Respiratory Rate</span>
+                                                    <span class="text-warning">Slightly Elevated</span>
+                                                </div>
+                                                <div class="progress" style="height: 8px;">
+                                                    <div class="progress-bar bg-warning" style="width: 60%"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Health History -->
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <i class="fas fa-history me-2"></i>Health History
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-content">
+                                    <div class="d-flex justify-content-between">
+                                        <h6>Risk Assessment</h6>
+                                        <small class="text-muted">2 hours ago</small>
+                                    </div>
+                                    <p class="mb-0">Low risk (15%) - All vitals normal</p>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-content">
+                                    <div class="d-flex justify-content-between">
+                                        <h6>Doctor Consultation</h6>
+                                        <small class="text-muted">2 days ago</small>
+                                    </div>
+                                    <p class="mb-0">Routine check-up, no concerns</p>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-content">
+                                    <div class="d-flex justify-content-between">
+                                        <h6>Lab Tests</h6>
+                                        <small class="text-muted">1 week ago</small>
+                                    </div>
+                                    <p class="mb-0">Blood work normal, WBC count stable</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Health Tips -->
+                <div class="card mb-4" id="healthTips">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-lightbulb me-2"></i>Health & Prevention Tips
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="tip-card mb-3 p-3 border rounded">
+                                    <h6><i class="fas fa-hand-wash text-primary me-2"></i>Hygiene</h6>
+                                    <p class="mb-0 small">Wash hands regularly with soap and water for at least 20 seconds.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="tip-card mb-3 p-3 border rounded">
+                                    <h6><i class="fas fa-thermometer text-danger me-2"></i>Monitoring</h6>
+                                    <p class="mb-0 small">Check temperature twice daily and report any fever above 38°C.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="tip-card mb-3 p-3 border rounded">
+                                    <h6><i class="fas fa-prescription text-success me-2"></i>Medication</h6>
+                                    <p class="mb-0 small">Take prescribed medications on time and complete the full course.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="tip-card mb-3 p-3 border rounded">
+                                    <h6><i class="fas fa-heart text-danger me-2"></i>Healthy Living</h6>
+                                    <p class="mb-0 small">Maintain a balanced diet, exercise regularly, and get adequate sleep.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Check Risk Modal -->
+    <div class="modal fade" id="checkRiskModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-stethoscope me-2"></i>Check Sepsis Risk</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Enter your current symptoms and vital signs to check your sepsis risk:</p>
+                    
+                    <form id="patientRiskForm">
+                        <div class="mb-3">
+                            <label class="form-label">Do you have a fever?</label>
+                            <select class="form-select" id="hasFever">
+                                <option value="no">No</option>
+                                <option value="yes">Yes, above 38°C</option>
+                                <option value="unsure">Unsure</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Do you feel chills or shivering?</label>
+                            <select class="form-select" id="hasChills">
+                                <option value="no">No</option>
+                                <option value="yes">Yes</option>
+                                <option value="mild">Mild</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Are you experiencing confusion or dizziness?</label>
+                            <select class="form-select" id="hasConfusion">
+                                <option value="no">No</option>
+                                <option value="yes">Yes</option>
+                                <option value="sometimes">Sometimes</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Do you have difficulty breathing?</label>
+                            <select class="form-select" id="hasBreathingDifficulty">
+                                <option value="no">No</option>
+                                <option value="yes">Yes</option>
+                                <option value="mild">Mild difficulty</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Any recent infections or wounds?</label>
+                            <textarea class="form-control" id="recentInfections" rows="2" placeholder="Describe any recent infections, wounds, or surgeries..."></textarea>
+                        </div>
+                    </form>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        This is a preliminary assessment. Always consult a healthcare professional for accurate diagnosis.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="assessPatientRisk()">
+                        <i class="fas fa-calculator me-2"></i>Assess Risk
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot Modal -->
+    <div class="modal fade" id="chatbotModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="fas fa-robot me-2"></i>Health Assistant</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="height: 400px; overflow-y: auto;">
+                    <div class="chat-container" id="patientChatContainer">
+                        <div class="chat-message bot-message mb-3">
+                            <div class="message-bubble">
+                                <strong>Health Assistant:</strong> Hello! I'm here to help you understand your health status and sepsis risk. How can I assist you today?
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="patientChatInput" placeholder="Ask about symptoms, prevention, or your risk...">
+                        <button class="btn btn-success" type="button" onclick="sendPatientMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Initialize patient dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initPatientCharts();
+            loadPatientData();
+            
+            // Chatbot button
+            document.getElementById('patientChatbotBtn').addEventListener('click', function() {
+                new bootstrap.Modal(document.getElementById('chatbotModal')).show();
+            });
+        });
+
+        function initPatientCharts() {
+            // Risk trend chart
+            const trendCtx = document.getElementById('riskTrendChart').getContext('2d');
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Risk Level',
+                        data: [25, 22, 20, 18, 17, 16, 15],
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadPatientData() {
+            // In a real application, this would fetch data from the server
+            // For now, we'll use sample data
+            updateVitalsDisplay({
+                heartRate: 72,
+                temperature: 36.8,
+                bloodPressure: '120/80',
+                respiratoryRate: 16,
+                lastUpdated: '2 hours ago'
+            });
+        }
+
+        function updateVitalsDisplay(vitals) {
+            document.getElementById('heartRate').textContent = vitals.heartRate;
+            document.getElementById('temperature').textContent = vitals.temperature;
+            document.getElementById('bloodPressure').textContent = vitals.bloodPressure;
+            document.getElementById('lastCheckup').textContent = vitals.lastUpdated;
+        }
+
+        function assessPatientRisk() {
+            const form = document.getElementById('patientRiskForm');
+            const formData = {
+                hasFever: document.getElementById('hasFever').value,
+                hasChills: document.getElementById('hasChills').value,
+                hasConfusion: document.getElementById('hasConfusion').value,
+                hasBreathingDifficulty: document.getElementById('hasBreathingDifficulty').value,
+                recentInfections: document.getElementById('recentInfections').value
+            };
+
+            // Simple risk calculation based on responses
+            let riskScore = 0;
+            
+            if (formData.hasFever === 'yes') riskScore += 30;
+            if (formData.hasChills === 'yes') riskScore += 20;
+            if (formData.hasConfusion === 'yes') riskScore += 25;
+            if (formData.hasBreathingDifficulty === 'yes') riskScore += 25;
+            
+            // Determine risk level
+            let riskLevel, riskColor;
+            if (riskScore >= 70) {
+                riskLevel = 'HIGH RISK';
+                riskColor = 'danger';
+            } else if (riskScore >= 40) {
+                riskLevel = 'MEDIUM RISK';
+                riskColor = 'warning';
+            } else {
+                riskLevel = 'LOW RISK';
+                riskColor = 'success';
+            }
+
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('checkRiskModal')).hide();
+            
+            // Show results
+            showRiskResult(riskScore, riskLevel, riskColor);
+        }
+
+        function showRiskResult(score, level, color) {
+            // Create result modal
+            const resultHTML = `
+                <div class="modal fade" id="riskResultModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-${color} text-white">
+                                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Risk Assessment Result</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div class="display-1 fw-bold text-${color} mb-3">${score}%</div>
+                                <span class="badge bg-${color} fs-5 p-3 mb-3">${level}</span>
+                                
+                                <div class="alert alert-${color} mt-4">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    ${getRiskMessage(level)}
+                                </div>
+                                
+                                <div class="recommendations mt-4">
+                                    <h6>Recommendations:</h6>
+                                    <ul class="text-start">
+                                        ${getRecommendations(level)}
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-${color}" onclick="contactDoctor()">
+                                    <i class="fas fa-phone me-2"></i>Contact Doctor
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add to page and show
+            document.body.insertAdjacentHTML('beforeend', resultHTML);
+            new bootstrap.Modal(document.getElementById('riskResultModal')).show();
+        }
+
+        function getRiskMessage(level) {
+            switch(level) {
+                case 'HIGH RISK':
+                    return 'Please seek immediate medical attention. These symptoms could indicate a serious condition.';
+                case 'MEDIUM RISK':
+                    return 'Monitor your symptoms closely and contact your healthcare provider if they worsen.';
+                case 'LOW RISK':
+                    return 'Your symptoms suggest low risk. Continue monitoring and maintain good health practices.';
+                default:
+                    return 'Please consult with a healthcare professional for accurate assessment.';
+            }
+        }
+
+        function getRecommendations(level) {
+            const recommendations = {
+                'HIGH RISK': [
+                    'Seek emergency medical care immediately',
+                    'Do not delay treatment',
+                    'Inform healthcare providers of all symptoms',
+                    'Have someone accompany you to the hospital'
+                ],
+                'MEDIUM RISK': [
+                    'Contact your doctor within 24 hours',
+                    'Monitor symptoms every 2 hours',
+                    'Stay hydrated and rest',
+                    'Avoid strenuous activities'
+                ],
+                'LOW RISK': [
+                    'Continue normal activities with monitoring',
+                    'Drink plenty of fluids',
+                    'Get adequate rest',
+                    'Contact doctor if symptoms change'
+                ]
+            };
+            
+            return recommendations[level].map(rec => `<li>${rec}</li>`).join('');
+        }
+
+        function contactDoctor() {
+            alert('In a real application, this would connect you to your healthcare provider.');
+            bootstrap.Modal.getInstance(document.getElementById('riskResultModal')).hide();
+        }
+
+        function sendPatientMessage() {
+            const input = document.getElementById('patientChatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message to chat
+            addPatientChatMessage(message, 'user');
+            input.value = '';
+            
+            // Show typing indicator
+            showPatientTypingIndicator();
+            
+            // Simulate AI response (in real app, this would call the API)
+            setTimeout(() => {
+                removePatientTypingIndicator();
+                const response = generatePatientResponse(message);
+                addPatientChatMessage(response, 'bot');
+            }, 1000);
+        }
+
+        function addPatientChatMessage(message, sender) {
+            const container = document.getElementById('patientChatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${sender}-message fade-in`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            const senderName = sender === 'bot' ? 'Health Assistant' : 'You';
+            bubble.innerHTML = `<strong>${senderName}:</strong> ${message}`;
+            
+            messageDiv.appendChild(bubble);
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showPatientTypingIndicator() {
+            const container = document.getElementById('patientChatContainer');
+            const indicator = document.createElement('div');
+            indicator.className = 'chat-message bot-message typing-indicator';
+            indicator.id = 'patientTypingIndicator';
+            indicator.innerHTML = `
+                <div class="message-bubble">
+                    <strong>Health Assistant:</strong>
+                    <span class="typing-dots">
+                        <span class="dot">.</span>
+                        <span class="dot">.</span>
+                        <span class="dot">.</span>
+                    </span>
+                </div>
+            `;
+            container.appendChild(indicator);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function removePatientTypingIndicator() {
+            const indicator = document.getElementById('patientTypingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        function generatePatientResponse(message) {
+            const lowerMessage = message.toLowerCase();
+            
+            if (lowerMessage.includes('symptom')) {
+                return "Common sepsis symptoms include: fever, chills, rapid breathing, rapid heart rate, confusion, and extreme pain. If you experience these, seek immediate medical attention.";
+            } else if (lowerMessage.includes('prevent') || lowerMessage.includes('avoid')) {
+                return "To prevent sepsis: practice good hygiene, get vaccinated, properly clean wounds, manage chronic conditions, and seek prompt treatment for infections.";
+            } else if (lowerMessage.includes('risk') || lowerMessage.includes('chance')) {
+                return "Based on your latest health data, your sepsis risk is currently low (15%). Continue with good health practices and regular monitoring.";
+            } else if (lowerMessage.includes('temperature') || lowerMessage.includes('fever')) {
+                return "Normal body temperature is around 37°C. A fever above 38°C could indicate infection. Monitor your temperature and contact your doctor if it stays elevated.";
+            } else if (lowerMessage.includes('doctor') || lowerMessage.includes('appointment')) {
+                return "Your next appointment is tomorrow at 10:00 AM with Dr. Sarah Johnson. Please arrive 15 minutes early with your health records.";
+            } else {
+                return "I understand you're asking about '" + message + "'. I can help with information about sepsis symptoms, prevention, risk assessment, and general health advice. Could you be more specific?";
+            }
+        }
+
+        function updateRiskAssessment() {
+            // Simulate updating risk assessment
+            document.getElementById('currentRisk').textContent = 'Low Risk';
+            document.getElementById('riskPercentage').textContent = '15%';
+            document.getElementById('riskProgress').style.width = '15%';
+            
+            showNotification('Risk assessment updated successfully', 'success');
+        }
+    </script>
+</body>
+</html>
