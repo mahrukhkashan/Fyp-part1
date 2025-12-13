@@ -15,9 +15,9 @@ class DatabaseConnection:
         try:
             self.connection = psycopg2.connect(
                 host="localhost",
-                database="mimiciii",
+                database="mimic_demo",
                 user="postgres",
-                password="password",  # Change this to your password
+                password="postgre22",  # Change this to your password
                 port="5432"
             )
             self.cursor = self.connection.cursor(cursor_factory=RealDictCursor)

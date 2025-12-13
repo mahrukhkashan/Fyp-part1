@@ -1,13 +1,25 @@
-import psycopg2
+# test_mimic_tables.py
+from config.database_config import DatabaseConnection
 
-try:
-    conn = psycopg2.connect(
-        host="localhost",
-        database="mimic_demo",
-        user="postgres",
-        password="postgre.22"  # Try your password
-    )
-    print("Database connection successful!")
-    conn.close()
-except Exception as e:
-    print(f"Connection failed: {e}")
+db = DatabaseConnection()
+if db.connect():
+    # Test each table
+    tables = [
+        'admissions',
+        'patients', 
+        'diagnoses_icd',
+        'chartevents',
+        'd_items',
+        'labevents',
+        'd_labitems'
+    ]
+    
+    for table in tables:
+        try:
+            result = db.execute_query(f"SELECT COUNT(*) FROM {table}")
+            count = result.iloc[0,0] if not result.empty else 0
+            print(f"✓ {table}: {count:,} records")
+        except Exception as e:
+            print(f"✗ {table}: ERROR - {e}")
+    
+    db.close()

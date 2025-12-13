@@ -1,0 +1,1 @@
+2025-12-12 16:27:04,324 - sepsis_prediction - ERROR - Login error: 415 Unsupported Media Type: Did not attempt to load JSON data because the request Content-Type was not 'application/json'. - [auth.py:91]
