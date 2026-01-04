@@ -24,3 +24,9 @@ A comprehensive system for early sepsis prediction with explainable AI and conve
 ```bash
 git clone <repository-url>
 cd explainable-sepsis-prediction
+
+
+# run the project
+.\venv\Scripts\Activate
+ python train_model.py
+python run.py

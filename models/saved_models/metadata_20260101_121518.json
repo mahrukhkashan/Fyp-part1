@@ -1,0 +1,10 @@
+{
+  "timestamp": "20260101_121518",
+  "model_name": "gradient_boosting",
+  "model_score": 0.0,
+  "n_samples": 2000,
+  "n_features": 27,
+  "sepsis_rate": 0.2,
+  "data_source": "MIMIC-III",
+  "training_time_seconds": 5.235422611236572
+}

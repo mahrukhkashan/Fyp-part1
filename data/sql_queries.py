@@ -1,36 +1,41 @@
 class SQLQueries:
-    """Contains SQL queries for MIMIC-III database"""
+    """Contains SQL queries for MIMIC-III demo database (first 5000 entries)"""
     
     @staticmethod
-    def get_admissions_query(limit=None):
-        """Query for admissions data"""
-        query = """
+    def get_admissions_query_demo(limit=500):
+        """Query for admissions data (first 500 entries)"""
+        query = f"""
         SELECT 
-            a.subject_id,
-            a.hadm_id,
-            a.admission_type,
-            a.admission_location,
-            a.discharge_location,
-            a.insurance,
-            a.language,
-            a.religion,
-            a.marital_status,
-            a.ethnicity,
-            a.diagnosis,
-            a.hospital_expire_flag,
-            DATE_PART('year', age(a.admittime, p.dob)) as admission_age,
-            EXTRACT(EPOCH FROM (a.dischtime - a.admittime))/3600 as length_of_stay_hours
-        FROM admissions a
-        JOIN patients p ON a.subject_id = p.subject_id
+            subject_id,
+            hadm_id,
+            admission_type,
+            admission_location,
+            discharge_location,
+            insurance,
+            language,
+            religion,
+            marital_status,
+            ethnicity,
+            diagnosis,
+            hospital_expire_flag,
+            DATE_PART('year', age(admittime, dob)) as admission_age
+        FROM (
+            SELECT 
+                a.*,
+                p.dob,
+                ROW_NUMBER() OVER (ORDER BY a.subject_id, a.hadm_id) as rn
+            FROM admissions a
+            JOIN patients p ON a.subject_id = p.subject_id
+        ) AS numbered
+        WHERE rn <= {limit}
+        ORDER BY subject_id, hadm_id
         """
-        if limit:
-            query += f" LIMIT {limit}"
         return query
     
     @staticmethod
-    def get_patients_query(limit=None):
-        """Query for patient demographics"""
-        query = """
+    def get_patients_query_demo(limit=500):
+        """Query for patient demographics (first 500 entries)"""
+        query = f"""
         SELECT 
             subject_id,
             gender,
@@ -41,17 +46,20 @@ class SQLQueries:
                 WHEN gender = 'F' THEN 0
                 ELSE NULL 
             END as gender_numeric,
-            EXTRACT(YEAR FROM age(CURRENT_DATE, dob)) as current_age
-        FROM patients
+            DATE_PART('year', age(CURRENT_DATE, dob)) as current_age
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (ORDER BY subject_id) as rn
+            FROM patients
+        ) AS numbered
+        WHERE rn <= {limit}
+        ORDER BY subject_id
         """
-        if limit:
-            query += f" LIMIT {limit}"
         return query
     
     @staticmethod
-    def get_icustays_query(limit=None):
-        """Query for ICU stays"""
-        query = """
+    def get_icustays_query_demo(limit=500):
+        """Query for ICU stays (first 500 entries)"""
+        query = f"""
         SELECT 
             subject_id,
             hadm_id,
@@ -61,33 +69,39 @@ class SQLQueries:
             first_wardid,
             last_wardid,
             EXTRACT(EPOCH FROM (outtime - intime))/3600 as icu_los_hours
-        FROM icustays
-        WHERE outtime IS NOT NULL
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (ORDER BY subject_id, hadm_id) as rn
+            FROM icustays
+            WHERE outtime IS NOT NULL
+        ) AS numbered
+        WHERE rn <= {limit}
+        ORDER BY subject_id, hadm_id
         """
-        if limit:
-            query += f" LIMIT {limit}"
         return query
     
     @staticmethod
-    def get_diagnoses_query(limit=None):
-        """Query for diagnoses"""
-        query = """
+    def get_diagnoses_query_demo(limit=500):
+        """Query for diagnoses (first 500 entries)"""
+        query = f"""
         SELECT 
             subject_id,
             hadm_id,
             icd9_code,
             seq_num
-        FROM diagnoses_icd
-        WHERE icd9_code IS NOT NULL
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (ORDER BY subject_id, hadm_id) as rn
+            FROM diagnoses_icd
+            WHERE icd9_code IS NOT NULL
+        ) AS numbered
+        WHERE rn <= {limit}
+        ORDER BY subject_id, hadm_id
         """
-        if limit:
-            query += f" LIMIT {limit}"
         return query
     
     @staticmethod
-    def get_vitals_query(limit=None):
-        """Query for vital signs"""
-        query = """
+    def get_vitals_query_demo(limit=500):
+        """Query for vital signs (first 500 entries)"""
+        query = f"""
         SELECT 
             ce.subject_id,
             ce.hadm_id,
@@ -97,22 +111,23 @@ class SQLQueries:
             ce.charttime,
             ce.valuenum as value,
             ce.valueuom as unit
-        FROM chartevents ce
-        JOIN d_items di ON ce.itemid = di.itemid
-        WHERE ce.valuenum IS NOT NULL 
-            AND ce.valuenum > 0
-            AND di.category IN ('Respiratory', 'Vital Signs', 'Cardiovascular')
-            AND di.label ILIKE ANY(ARRAY['%heart rate%', '%blood pressure%', '%temperature%', 
-                                       '%respiratory rate%', '%oxygen saturation%', '%glucose%'])
+        FROM (
+            SELECT ce.*, ROW_NUMBER() OVER (ORDER BY ce.subject_id, ce.charttime) as rn
+            FROM chartevents ce
+            JOIN d_items di ON ce.itemid = di.itemid
+            WHERE ce.valuenum IS NOT NULL 
+                AND ce.valuenum > 0
+                AND di.category IN ('Respiratory', 'Vital Signs', 'Cardiovascular')
+        ) AS ce
+        WHERE rn <= {limit}
+        ORDER BY ce.subject_id, ce.charttime
         """
-        if limit:
-            query += f" LIMIT {limit}"
         return query
     
     @staticmethod
-    def get_labs_query(limit=None):
-        """Query for laboratory results"""
-        query = """
+    def get_labs_query_demo(limit=500):
+        """Query for laboratory results (first 500 entries)"""
+        query = f"""
         SELECT 
             le.subject_id,
             le.hadm_id,
@@ -121,197 +136,147 @@ class SQLQueries:
             le.valuenum as value,
             le.valueuom as unit,
             le.flag
-        FROM labevents le
-        JOIN d_labitems dli ON le.itemid = dli.itemid
-        WHERE le.valuenum IS NOT NULL
-            AND le.valuenum > 0
-            AND dli.label ILIKE ANY(ARRAY['%white blood cell%', '%lactate%', '%creatinine%', 
-                                         '%platelet%', '%bilirubin%', '%c-reactive protein%',
-                                         '%procalcitonin%', '%glucose%', '%hemoglobin%'])
-        """
-        if limit:
-            query += f" LIMIT {limit}"
-        return query
-    
-    @staticmethod
-    def get_notes_query(limit=None):
-        """Query for clinical notes"""
-        query = """
-        SELECT 
-            subject_id,
-            hadm_id,
-            chartdate,
-            category,
-            description,
-            text
-        FROM noteevents
-        WHERE iserror IS NULL 
-            OR iserror != '1'
-            AND text IS NOT NULL
-            AND LENGTH(text) > 100
-            AND category IN ('Discharge summary', 'Radiology', 'Nursing', 'Physician')
-        """
-        if limit:
-            query += f" LIMIT {limit}"
-        return query
-    
-    @staticmethod
-    def get_patient_full_data(subject_id):
-        """Get complete patient data for prediction"""
-        query = f"""
-        WITH patient_info AS (
-            SELECT 
-                p.subject_id,
-                p.gender,
-                DATE_PART('year', age(CURRENT_DATE, p.dob)) as age,
-                a.hadm_id,
-                a.admission_type,
-                a.ethnicity,
-                a.diagnosis,
-                i.icustay_id,
-                i.first_careunit,
-                i.last_careunit
-            FROM patients p
-            LEFT JOIN admissions a ON p.subject_id = a.subject_id
-            LEFT JOIN icustays i ON a.hadm_id = i.hadm_id
-            WHERE p.subject_id = {subject_id}
-            ORDER BY a.admittime DESC
-            LIMIT 1
-        ),
-        latest_vitals AS (
-            SELECT 
-                ce.subject_id,
-                AVG(CASE WHEN di.label ILIKE '%heart rate%' THEN ce.valuenum END) as heart_rate,
-                AVG(CASE WHEN di.label ILIKE '%blood pressure%' AND di.label ILIKE '%systolic%' THEN ce.valuenum END) as systolic_bp,
-                AVG(CASE WHEN di.label ILIKE '%blood pressure%' AND di.label ILIKE '%diastolic%' THEN ce.valuenum END) as diastolic_bp,
-                AVG(CASE WHEN di.label ILIKE '%temperature%' THEN ce.valuenum END) as temperature,
-                AVG(CASE WHEN di.label ILIKE '%respiratory rate%' THEN ce.valuenum END) as respiratory_rate,
-                AVG(CASE WHEN di.label ILIKE '%oxygen saturation%' THEN ce.valuenum END) as spo2
-            FROM chartevents ce
-            JOIN d_items di ON ce.itemid = di.itemid
-            WHERE ce.subject_id = {subject_id}
-                AND ce.valuenum IS NOT NULL
-                AND ce.valuenum > 0
-                AND di.label ILIKE ANY(ARRAY['%heart rate%', '%blood pressure%', '%temperature%', 
-                                           '%respiratory rate%', '%oxygen saturation%'])
-            GROUP BY ce.subject_id
-        ),
-        latest_labs AS (
-            SELECT 
-                le.subject_id,
-                AVG(CASE WHEN dli.label ILIKE '%white blood cell%' THEN le.valuenum END) as wbc,
-                AVG(CASE WHEN dli.label ILIKE '%lactate%' THEN le.valuenum END) as lactate,
-                AVG(CASE WHEN dli.label ILIKE '%creatinine%' THEN le.valuenum END) as creatinine,
-                AVG(CASE WHEN dli.label ILIKE '%platelet%' THEN le.valuenum END) as platelets,
-                AVG(CASE WHEN dli.label ILIKE '%bilirubin%' THEN le.valuenum END) as bilirubin,
-                AVG(CASE WHEN dli.label ILIKE '%c-reactive protein%' THEN le.valuenum END) as crp,
-                AVG(CASE WHEN dli.label ILIKE '%procalcitonin%' THEN le.valuenum END) as procalcitonin
+        FROM (
+            SELECT le.*, ROW_NUMBER() OVER (ORDER BY le.subject_id, le.charttime) as rn
             FROM labevents le
             JOIN d_labitems dli ON le.itemid = dli.itemid
-            WHERE le.subject_id = {subject_id}
-                AND le.valuenum IS NOT NULL
+            WHERE le.valuenum IS NOT NULL
                 AND le.valuenum > 0
-                AND dli.label ILIKE ANY(ARRAY['%white blood cell%', '%lactate%', '%creatinine%', 
-                                             '%platelet%', '%bilirubin%', '%c-reactive protein%',
-                                             '%procalcitonin%'])
-            GROUP BY le.subject_id
-        ),
-        sepsis_diagnosis AS (
-            SELECT 
-                subject_id,
-                hadm_id,
-                CASE WHEN EXISTS (
-                    SELECT 1 FROM diagnoses_icd d 
-                    WHERE d.subject_id = a.subject_id 
-                    AND d.hadm_id = a.hadm_id
-                    AND d.icd9_code IN ('038', '785.52', '995.91', '995.92')
-                ) THEN 1 ELSE 0 END as has_sepsis
-            FROM admissions a
-            WHERE a.subject_id = {subject_id}
-        )
-        SELECT 
-            pi.*,
-            COALESCE(lv.heart_rate, 80) as heart_rate,
-            COALESCE(lv.systolic_bp, 120) as systolic_bp,
-            COALESCE(lv.diastolic_bp, 80) as diastolic_bp,
-            COALESCE(lv.temperature, 37) as temperature,
-            COALESCE(lv.respiratory_rate, 18) as respiratory_rate,
-            COALESCE(lv.spo2, 98) as spo2,
-            COALESCE(ll.wbc, 8) as wbc,
-            COALESCE(ll.lactate, 1.0) as lactate,
-            COALESCE(ll.creatinine, 0.9) as creatinine,
-            COALESCE(ll.platelets, 250) as platelets,
-            COALESCE(ll.bilirubin, 0.5) as bilirubin,
-            COALESCE(ll.crp, 5) as crp,
-            COALESCE(ll.procalcitonin, 0.1) as procalcitonin,
-            COALESCE(sd.has_sepsis, 0) as has_sepsis
-        FROM patient_info pi
-        LEFT JOIN latest_vitals lv ON pi.subject_id = lv.subject_id
-        LEFT JOIN latest_labs ll ON pi.subject_id = ll.subject_id
-        LEFT JOIN sepsis_diagnosis sd ON pi.subject_id = sd.subject_id AND pi.hadm_id = sd.hadm_id
+        ) AS le
+        WHERE rn <= {limit}
+        ORDER BY le.subject_id, le.charttime
         """
         return query
     
     @staticmethod
-    def get_sepsis_patients_data(limit=5000):
-        """Get balanced dataset for training (both sepsis and non-sepsis)"""
+    def get_sepsis_training_data_demo(limit=500):
+        """Optimized query for sepsis training data from mimic_demo"""
         query = f"""
-        WITH patient_sepsis AS (
-            SELECT DISTINCT
+        WITH patient_sample AS (
+            -- Get first 500 patients
+            SELECT subject_id, gender, dob
+            FROM (
+                SELECT *, ROW_NUMBER() OVER (ORDER BY subject_id) as rn
+                FROM patients
+            ) AS numbered
+            WHERE rn <= {limit}
+        ),
+        admissions_sample AS (
+            -- Get admissions for these patients
+            SELECT a.*, ps.gender, ps.dob
+            FROM admissions a
+            JOIN patient_sample ps ON a.subject_id = ps.subject_id
+            ORDER BY a.subject_id, a.hadm_id
+            LIMIT {limit}
+        ),
+        sepsis_flags AS (
+            -- Check for sepsis diagnoses
+            SELECT DISTINCT 
                 a.subject_id,
                 a.hadm_id,
-                CASE WHEN EXISTS (
-                    SELECT 1 FROM diagnoses_icd d 
-                    WHERE d.subject_id = a.subject_id 
-                    AND d.hadm_id = a.hadm_id
-                    AND d.icd9_code IN ('038', '785.52', '995.91', '995.92')
-                ) THEN 1 ELSE 0 END as sepsis_label
-            FROM admissions a
+                CASE 
+                    WHEN EXISTS (
+                        SELECT 1 FROM diagnoses_icd d 
+                        WHERE d.subject_id = a.subject_id 
+                        AND d.hadm_id = a.hadm_id
+                        AND d.icd9_code IN ('038', '785.52', '995.91', '995.92')
+                    ) THEN 1 
+                    ELSE 0 
+                END as sepsis_label
+            FROM admissions_sample a
         ),
-        sepsis_patients AS (
-            SELECT * FROM patient_sepsis WHERE sepsis_label = 1
-            LIMIT {limit//2}
-        ),
-        non_sepsis_patients AS (
-            SELECT * FROM patient_sepsis WHERE sepsis_label = 0
-            LIMIT {limit//2}
-        ),
-        combined_patients AS (
-            SELECT * FROM sepsis_patients
-            UNION ALL
-            SELECT * FROM non_sepsis_patients
-        ),
-        patient_features AS (
+        aggregated_vitals AS (
+            -- Get aggregated vitals
             SELECT 
-                cp.subject_id,
-                cp.hadm_id,
-                cp.sepsis_label,
-                p.gender,
-                DATE_PART('year', age(a.admittime, p.dob)) as age,
-                a.ethnicity,
+                a.subject_id,
+                a.hadm_id,
                 AVG(CASE WHEN di.label ILIKE '%heart rate%' THEN ce.valuenum END) as heart_rate,
-                AVG(CASE WHEN di.label ILIKE '%blood pressure%' AND di.label ILIKE '%systolic%' THEN ce.valuenum END) as systolic_bp,
-                AVG(CASE WHEN di.label ILIKE '%blood pressure%' AND di.label ILIKE '%diastolic%' THEN ce.valuenum END) as diastolic_bp,
                 AVG(CASE WHEN di.label ILIKE '%temperature%' THEN ce.valuenum END) as temperature,
                 AVG(CASE WHEN di.label ILIKE '%respiratory rate%' THEN ce.valuenum END) as respiratory_rate,
-                AVG(CASE WHEN di.label ILIKE '%oxygen saturation%' THEN ce.valuenum END) as spo2,
+                AVG(CASE WHEN di.label ILIKE '%blood pressure%' AND di.label ILIKE '%systolic%' THEN ce.valuenum END) as systolic_bp,
+                AVG(CASE WHEN di.label ILIKE '%oxygen saturation%' THEN ce.valuenum END) as spo2
+            FROM admissions_sample a
+            LEFT JOIN chartevents ce ON a.subject_id = ce.subject_id AND a.hadm_id = ce.hadm_id
+            LEFT JOIN d_items di ON ce.itemid = di.itemid
+            WHERE ce.valuenum IS NOT NULL AND ce.valuenum > 0
+            GROUP BY a.subject_id, a.hadm_id
+        ),
+        aggregated_labs AS (
+            -- Get aggregated labs
+            SELECT 
+                a.subject_id,
+                a.hadm_id,
                 AVG(CASE WHEN dli.label ILIKE '%white blood cell%' THEN le.valuenum END) as wbc,
                 AVG(CASE WHEN dli.label ILIKE '%lactate%' THEN le.valuenum END) as lactate,
-                AVG(CASE WHEN dli.label ILIKE '%creatinine%' THEN le.valuenum END) as creatinine,
-                AVG(CASE WHEN dli.label ILIKE '%platelet%' THEN le.valuenum END) as platelets,
-                AVG(CASE WHEN dli.label ILIKE '%bilirubin%' THEN le.valuenum END) as bilirubin
-            FROM combined_patients cp
-            LEFT JOIN patients p ON cp.subject_id = p.subject_id
-            LEFT JOIN admissions a ON cp.subject_id = a.subject_id AND cp.hadm_id = a.hadm_id
-            LEFT JOIN chartevents ce ON cp.subject_id = ce.subject_id AND cp.hadm_id = ce.hadm_id
-            LEFT JOIN d_items di ON ce.itemid = di.itemid
-            LEFT JOIN labevents le ON cp.subject_id = le.subject_id AND cp.hadm_id = le.hadm_id
+                AVG(CASE WHEN dli.label ILIKE '%creatinine%' THEN le.valuenum END) as creatinine
+            FROM admissions_sample a
+            LEFT JOIN labevents le ON a.subject_id = le.subject_id AND a.hadm_id = le.hadm_id
             LEFT JOIN d_labitems dli ON le.itemid = dli.itemid
-            GROUP BY cp.subject_id, cp.hadm_id, cp.sepsis_label, p.gender, p.dob, a.admittime, a.ethnicity
+            WHERE le.valuenum IS NOT NULL AND le.valuenum > 0
+            GROUP BY a.subject_id, a.hadm_id
         )
-        SELECT * FROM patient_features
-        WHERE heart_rate IS NOT NULL 
-            AND systolic_bp IS NOT NULL 
-            AND temperature IS NOT NULL
+        SELECT 
+            a.subject_id,
+            a.hadm_id,
+            a.gender,
+            DATE_PART('year', age(a.admittime, a.dob)) as age,
+            a.ethnicity,
+            a.admission_type,
+            COALESCE(v.heart_rate, 80) as heart_rate,
+            COALESCE(v.temperature, 37) as temperature,
+            COALESCE(v.respiratory_rate, 18) as respiratory_rate,
+            COALESCE(v.systolic_bp, 120) as systolic_bp,
+            COALESCE(v.spo2, 98) as spo2,
+            COALESCE(l.wbc, 8) as wbc,
+            COALESCE(l.lactate, 1.0) as lactate,
+            COALESCE(l.creatinine, 0.9) as creatinine,
+            sf.sepsis_label
+        FROM admissions_sample a
+        LEFT JOIN aggregated_vitals v ON a.subject_id = v.subject_id AND a.hadm_id = v.hadm_id
+        LEFT JOIN aggregated_labs l ON a.subject_id = l.subject_id AND a.hadm_id = l.hadm_id
+        LEFT JOIN sepsis_flags sf ON a.subject_id = sf.subject_id AND a.hadm_id = sf.hadm_id
+        ORDER BY a.subject_id, a.hadm_id
         """
         return query
+    
+    @staticmethod
+    def get_patient_full_data_demo(subject_id):
+        """Get complete patient data for prediction (demo version)"""
+        query = f"""
+        SELECT 
+            p.subject_id,
+            p.gender,
+            DATE_PART('year', age(CURRENT_DATE, p.dob)) as age,
+            a.hadm_id,
+            a.admission_type,
+            a.ethnicity,
+            a.diagnosis,
+            -- Simple sepsis check
+            CASE WHEN EXISTS (
+                SELECT 1 FROM diagnoses_icd d 
+                WHERE d.subject_id = p.subject_id
+                AND d.icd9_code IN ('038', '785.52', '995.91', '995.92')
+            ) THEN 1 ELSE 0 END as has_sepsis
+        FROM patients p
+        LEFT JOIN admissions a ON p.subject_id = a.subject_id
+        WHERE p.subject_id = {subject_id}
+        ORDER BY a.admittime DESC
+        LIMIT 1
+        """
+        return query
+    
+    # Keep original methods for backward compatibility
+    @staticmethod
+    def get_sepsis_patients_data(limit=500):
+        """Alias for demo version"""
+        return SQLQueries.get_sepsis_training_data_demo(limit)
+    
+    @staticmethod
+    def get_vitals_query(limit=500):
+        """Alias for demo version"""
+        return SQLQueries.get_vitals_query_demo(limit)
+    
+    @staticmethod
+    def get_labs_query(limit=500):
+        """Alias for demo version"""
+        return SQLQueries.get_labs_query_demo(limit)
